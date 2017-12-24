@@ -107,8 +107,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--model', choices=('ssd300', 'ssd512'), default='ssd300')
-    parser.add_argument('--batchsize', type=int, default=32)
-    parser.add_argument('--gpu', type=int, default=-1)
+    parser.add_argument('--batchsize', type=int, default=24)
+    parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--out', default='result')
     parser.add_argument('--resume')
     args = parser.parse_args()
@@ -134,7 +134,7 @@ def main():
             VOCBboxDataset(year='2012', split='trainval')
         ),
         Transform(model.coder, model.insize, model.mean))
-    train_iter = chainer.iterators.MultiprocessIterator(train, args.batchsize)
+    train_iter = chainer.iterators.MultiprocessIterator(train, args.batchsize, shared_mem=4000000)
 
     test = VOCBboxDataset(
         year='2007', split='test',
