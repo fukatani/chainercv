@@ -10,6 +10,7 @@ import chainer.links as L
 
 from chainercv.links.model.ssd import Multibox
 from chainercv.links.model.ssd import ResidualMultibox
+from chainercv.links.model.ssd import DeconvolutionalResidualMultibox
 from chainercv.links.model.ssd import Normalize
 from chainercv.links.model.ssd import SSD
 from chainercv.utils import download_model
@@ -441,6 +442,72 @@ class SSD300Plus(SSD):
         super(SSD300Plus, self).__init__(
             extractor=VGG16Extractor300(),
             multibox=ResidualMultibox(
+                n_class=n_fg_class + 1,
+                aspect_ratios=((2,), (2, 3), (2, 3), (2, 3), (2,), (2,))),
+            steps=(8, 16, 32, 64, 100, 300),
+            sizes=(30, 60, 111, 162, 213, 264, 315),
+            mean=_imagenet_mean)
+
+        if path:
+            _load_npz(path, self)
+
+
+class DSSD300(SSD):
+    """Deconvolutional Single Shot Multibox Detector with 300x300 inputs.
+
+    This is a model of Single Shot Multibox Detector [#]_.
+    This model uses :class:`~chainercv.links.model.ssd.VGG16Extractor300` as
+    its feature extractor.
+
+    .. [#] Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy,
+       Scott Reed, Cheng-Yang Fu, Alexander C. Berg.
+       SSD: Single Shot MultiBox Detector. ECCV 2016.
+
+    Args:
+       n_fg_class (int): The number of classes excluding the background.
+       pretrained_model (str): The weight file to be loaded.
+           This can take :obj:`'voc0712'`, `filepath` or :obj:`None`.
+           The default value is :obj:`None`.
+
+            * :obj:`'voc0712'`: Load weights trained on trainval split of \
+                PASCAL VOC 2007 and 2012. \
+                The weight file is downloaded and cached automatically. \
+                :obj:`n_fg_class` must be :obj:`20` or :obj:`None`. \
+                These weights were converted from the Caffe model provided by \
+                `the original implementation \
+                <https://github.com/weiliu89/caffe/tree/ssd>`_. \
+                The conversion code is `chainercv/examples/ssd/caffe2npz.py`.
+            * :obj:`'imagenet'`: Load weights of VGG-16 trained on ImageNet. \
+                The weight file is downloaded and cached automatically. \
+                This option initializes weights partially and the rests are \
+                initialized randomly. In this case, :obj:`n_fg_class` \
+                can be set to any number.
+            * `filepath`: A path of npz file. In this case, :obj:`n_fg_class` \
+                must be specified properly.
+            * :obj:`None`: Do not load weights.
+
+    """
+
+    _models = {
+        'voc0712': {
+            'n_fg_class': 20,
+            'url': 'https://github.com/yuyu2172/share-weights/releases/'
+            'download/0.0.3/ssd300_voc0712_2017_06_06.npz'
+        },
+        'imagenet': {
+            'n_fg_class': None,
+            'url': 'https://github.com/yuyu2172/share-weights/releases/'
+            'download/0.0.3/ssd_vgg16_imagenet_2017_06_09.npz'
+        },
+    }
+
+    def __init__(self, n_fg_class=None, pretrained_model=None):
+        n_fg_class, path = _check_pretrained_model(
+            n_fg_class, pretrained_model, self._models)
+
+        super(DSSD300, self).__init__(
+            extractor=VGG16Extractor300(),
+            multibox=DeconvolutionalResidualMultibox(
                 n_class=n_fg_class + 1,
                 aspect_ratios=((2,), (2, 3), (2, 3), (2, 3), (2,), (2,))),
             steps=(8, 16, 32, 64, 100, 300),

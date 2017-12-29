@@ -273,6 +273,7 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
             self.res = chainer.ChainList()
             self.loc = chainer.ChainList()
             self.conf = chainer.ChainList()
+            self.dec = chainer.ChainList()
 
         if initialW is None:
             initialW = initializers.LeCunUniform()
@@ -280,12 +281,23 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
             initial_bias = initializers.Zero()
         init = {'initialW': initialW, 'initial_bias': initial_bias}
 
-        for ar in aspect_ratios:
+        for ar in reversed(aspect_ratios):
             n = (len(ar) + 1) * 2
             self.res.add_link(Residual(**init))
             self.loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))
             self.conf.add_link(L.Convolution2D(
                 n * self.n_class, 3, pad=1, **init))
+
+        for i in range(len(aspect_ratios) - 1):
+            if i == 0:
+                ksize = 3
+            elif i == 1 or i == 3:
+                ksize = 1
+            else:
+                ksize = 2
+
+            out_channel = 512
+            self.dec.add_link(DeconvolutionModule(out_channel, ksize, **init))
 
     def __call__(self, xs):
         """Compute loc and conf from feature maps
@@ -318,7 +330,7 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
             if i == 0:
                 y = x
             else:
-                y = self.dec[i](y, x)
+                y = self.dec[i-1](x, y)
             y = self.res[i](y)
             mb_loc = self.loc[i](y)
             mb_loc = F.transpose(mb_loc, (0, 2, 3, 1))
@@ -331,28 +343,26 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
                 mb_conf, (mb_conf.shape[0], -1, self.n_class))
             mb_confs.append(mb_conf)
 
+        mb_locs = reversed(mb_locs)
         mb_locs = F.concat(mb_locs, axis=1)
+        mb_confs = reversed(mb_confs)
         mb_confs = F.concat(mb_confs, axis=1)
 
         return mb_locs, mb_confs
 
 
 class DeconvolutionModule(chainer.Chain):
-    def __init__(self):
-        init = {
-            'initialW': initializers.LeCunUniform(),
-            'initial_bias': initializers.Zero(),
-        }
+    def __init__(self, out_channel, ksize, **init):
         super(DeconvolutionModule, self).__init__()
         with self.init_scope():
-            self.conv1_1 = L.Convolution2D(512, 1, pad=1, **init)
-            self.conv1_2 = L.Convolution2D(512, 3, pad=1, **init)
-            self.bn1_1 = L.BatchNormalization(512)
-            self.bn1_2 = L.BatchNormalization(512)
+            self.conv1_1 = L.Convolution2D(out_channel, 3, pad=1, **init)
+            self.conv1_2 = L.Convolution2D(out_channel, 3, pad=1, **init)
+            self.bn1_1 = L.BatchNormalization(out_channel)
+            self.bn1_2 = L.BatchNormalization(out_channel)
 
-            self.deconv2_1 = L.DeConvolution2D(512, 2, **init)
-            self.bn2_1 = L.BatchNormalization(512)
-            self.conv2_1 = L.Convolution2D(512, 3, pad=1, **init)
+            self.deconv2_1 = L.Deconvolution2D(out_channel, ksize, stride=2, **init)
+            self.bn2_1 = L.BatchNormalization(out_channel)
+            self.conv2_1 = L.Convolution2D(out_channel, 3, pad=1, **init)
 
     def __call__(self, x1, x2):
         """Compute loc and conf from feature maps
