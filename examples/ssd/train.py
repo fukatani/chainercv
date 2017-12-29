@@ -17,6 +17,7 @@ from chainercv.extensions import DetectionVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
 from chainercv.links.model.ssd import multibox_loss
 from chainercv.links import SSD300
+from chainercv.links import SSD300Plus
 from chainercv.links import SSD512
 from chainercv import transforms
 
@@ -119,6 +120,10 @@ def main():
             pretrained_model='imagenet')
     elif args.model == 'ssd512':
         model = SSD512(
+            n_fg_class=len(voc_bbox_label_names),
+            pretrained_model='imagenet')
+    if args.model == 'ssd300plus':
+        model = SSD300Plus(
             n_fg_class=len(voc_bbox_label_names),
             pretrained_model='imagenet')
 

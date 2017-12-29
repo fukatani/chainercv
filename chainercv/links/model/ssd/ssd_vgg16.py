@@ -9,6 +9,7 @@ from chainer import initializers
 import chainer.links as L
 
 from chainercv.links.model.ssd import Multibox
+from chainercv.links.model.ssd import ResidualMultibox
 from chainercv.links.model.ssd import Normalize
 from chainercv.links.model.ssd import SSD
 from chainercv.utils import download_model
@@ -384,7 +385,7 @@ class SSD512(SSD):
             _load_npz(path, self)
 
 
-class SSD300(SSD):
+class SSD300Plus(SSD):
     """Single Shot Multibox Detector with 300x300 inputs.
 
     This is a model of Single Shot Multibox Detector [#]_.
@@ -437,9 +438,9 @@ class SSD300(SSD):
         n_fg_class, path = _check_pretrained_model(
             n_fg_class, pretrained_model, self._models)
 
-        super(SSD300, self).__init__(
+        super(SSD300Plus, self).__init__(
             extractor=VGG16Extractor300(),
-            multibox=Multibox(
+            multibox=ResidualMultibox(
                 n_class=n_fg_class + 1,
                 aspect_ratios=((2,), (2, 3), (2, 3), (2, 3), (2,), (2,))),
             steps=(8, 16, 32, 64, 100, 300),

@@ -145,7 +145,7 @@ class ResidualMultibox(chainer.Chain):
 
         for ar in aspect_ratios:
             n = (len(ar) + 1) * 2
-            self.res.add_link(Residual, **init)
+            self.res.add_link(Residual(**init))
             self.loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))
             self.conf.add_link(L.Convolution2D(
                 n * self.n_class, 3, pad=1, **init))
@@ -210,19 +210,19 @@ class Residual(chainer.Chain):
         super(Residual, self).__init__()
         with self.init_scope():
             self.conv1 = L.Convolution2D(
-                256, 1, pad=1, initialW=initialW, initial_bias=initial_bias,
+                256, 1, pad=0, initialW=initialW, initial_bias=initial_bias,
                 nobias=True)
             self.bn1 = L.BatchNormalization(256)
             self.conv2 = L.Convolution2D(
-                256, 1, pad=1, initialW=initialW, initial_bias=initial_bias,
+                256, 1, pad=0, initialW=initialW, initial_bias=initial_bias,
                 nobias=True)
             self.bn2 = L.BatchNormalization(256)
             self.conv3 = L.Convolution2D(
-                256, 1, pad=1,initialW=initialW, initial_bias=initial_bias,
+                1024, 1, pad=0,initialW=initialW, initial_bias=initial_bias,
                 nobias=True)
             self.bn3 = L.BatchNormalization(1024)
             self.conv4 = L.Convolution2D(
-                1024, 1, pad=1, initialW=initialW, initial_bias=initial_bias,
+                1024, 1, pad=0, initialW=initialW, initial_bias=initial_bias,
                 nobias=True)
             self.bn4 = L.BatchNormalization(1024)
 
@@ -268,7 +268,7 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
         self.n_class = n_class
         self.aspect_ratios = aspect_ratios
 
-        super(ResidualMultibox, self).__init__()
+        super(DeconvolutionalResidualMultibox, self).__init__()
         with self.init_scope():
             self.res = chainer.ChainList()
             self.loc = chainer.ChainList()
@@ -282,7 +282,7 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
 
         for ar in aspect_ratios:
             n = (len(ar) + 1) * 2
-            self.res.add_link(Residual, **init)
+            self.res.add_link(Residual(**init))
             self.loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))
             self.conf.add_link(L.Convolution2D(
                 n * self.n_class, 3, pad=1, **init))
