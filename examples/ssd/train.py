@@ -16,6 +16,7 @@ from chainercv.datasets import VOCBboxDataset
 from chainercv.extensions import DetectionVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
 from chainercv.links.model.ssd import multibox_loss
+from chainercv.links import DSSD300
 from chainercv.links import SSD300
 from chainercv.links import SSD300Plus
 from chainercv.links import SSD512
@@ -107,8 +108,8 @@ class Transform(object):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--model', choices=('ssd300', 'ssd512'), default='ssd300')
-    parser.add_argument('--batchsize', type=int, default=24)
+        '--model', choices=('ssd300', 'ssd512'), default='ssd300plus')
+    parser.add_argument('--batchsize', type=int, default=14)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--out', default='result')
     parser.add_argument('--resume')
@@ -124,6 +125,10 @@ def main():
             pretrained_model='imagenet')
     if args.model == 'ssd300plus':
         model = SSD300Plus(
+            n_fg_class=len(voc_bbox_label_names),
+            pretrained_model='imagenet')
+    if args.model == 'dssd300':
+        model = DSSD300(
             n_fg_class=len(voc_bbox_label_names),
             pretrained_model='imagenet')
 
