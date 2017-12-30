@@ -14,3 +14,4 @@ dist/
 check_autopep8
 
 tests/bin/
+*0000

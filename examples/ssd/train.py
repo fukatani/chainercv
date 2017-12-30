@@ -13,6 +13,8 @@ from chainer.training import triggers
 
 from chainercv.datasets import voc_bbox_label_names
 from chainercv.datasets import VOCBboxDataset
+from chainercv.datasets import SiameseDataset
+from chainercv.datasets import MixupVOCDataset
 from chainercv.extensions import DetectionVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
 from chainercv.links.model.ssd import multibox_loss
@@ -112,6 +114,7 @@ def main():
     parser.add_argument('--batchsize', type=int, default=24)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--out', default='result')
+    parser.add_argument('--mixup', action='store_true', default=False)
     parser.add_argument('--resume')
     args = parser.parse_args()
 
@@ -138,12 +141,22 @@ def main():
         chainer.cuda.get_device_from_id(args.gpu).use()
         model.to_gpu()
 
-    train = TransformDataset(
-        ConcatenatedDataset(
-            VOCBboxDataset(year='2007', split='trainval'),
-            VOCBboxDataset(year='2012', split='trainval')
-        ),
-        Transform(model.coder, model.insize, model.mean))
+    if args.mixup:
+        train = MixupVOCDataset(
+            SiameseDataset(
+            TransformDataset(
+            ConcatenatedDataset(
+                VOCBboxDataset(year='2007', split='trainval'),
+                VOCBboxDataset(year='2012', split='trainval')
+            ))),
+            Transform(model.coder, model.insize, model.mean))
+    else:
+        train = TransformDataset(
+            ConcatenatedDataset(
+                VOCBboxDataset(year='2007', split='trainval'),
+                VOCBboxDataset(year='2012', split='trainval')
+            ),
+            Transform(model.coder, model.insize, model.mean))
     train_iter = chainer.iterators.MultiprocessIterator(train, args.batchsize, shared_mem=4000000)
 
     test = VOCBboxDataset(

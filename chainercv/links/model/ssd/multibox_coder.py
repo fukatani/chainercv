@@ -266,6 +266,83 @@ class MultiboxCoder(object):
         return bbox, label, score
 
 
+class MultiboxCoderSoftlabel(MultiboxCoder):
+    def encode(self, bbox, label, weight, iou_thresh=0.5):
+        """Encodes coordinates and classes of bounding boxes.
+
+        This method encodes :obj:`bbox` and :obj:`label` to :obj:`mb_loc`
+        and :obj:`mb_label`, which are used to compute multibox loss.
+
+        Args:
+            bbox (array): A float array of shape :math:`(R, 4)`,
+                where :math:`R` is the number of bounding boxes in an image.
+                Each bouding box is organized by
+                :math:`(y_{min}, x_{min}, y_{max}, x_{max})`
+                in the second axis.
+            label (array) : An integer array of shape :math:`(R,)`.
+                Each value indicates the class of the bounding box.
+            iou_thresh (float): The threshold value to determine
+                a default bounding box is assigned to a ground truth
+                or not. The default value is :obj:`0.5`.
+
+        Returns:
+            tuple of two arrays:
+            This method returns a tuple of two arrays,
+            :obj:`(mb_loc, mb_label)`.
+
+            * **mb_loc**: A float array of shape :math:`(K, 4)`, \
+                where :math:`K` is the number of default bounding boxes.
+            * **mb_label**: An integer array of shape :math:`(K,)`.
+
+        """
+        xp = self.xp
+
+        if len(bbox) == 0:
+            return (
+                xp.zeros(self._default_bbox.shape, dtype=np.float32),
+                xp.zeros(self._default_bbox.shape[0], dtype=np.int32))
+
+        iou = utils.bbox_iou(
+            xp.hstack((
+                self._default_bbox[:, :2] - self._default_bbox[:, 2:] / 2,
+                self._default_bbox[:, :2] + self._default_bbox[:, 2:] / 2)),
+            bbox)
+
+        index = xp.empty(len(self._default_bbox), dtype=int)
+        # -1 is for background
+        index[:] = -1
+
+        masked_iou = iou.copy()
+        while True:
+            i, j = _unravel_index(masked_iou.argmax(), masked_iou.shape)
+            if masked_iou[i, j] <= 1e-6:
+                break
+            index[i] = j
+            masked_iou[i, :] = 0
+            masked_iou[:, j] = 0
+
+        mask = xp.logical_and(index < 0, iou.max(axis=1) >= iou_thresh)
+        index[mask] = iou[mask].argmax(axis=1)
+
+        mb_bbox = bbox[index].copy()
+        # (y_min, x_min, y_max, x_max) -> (y_min, x_min, height, width)
+        mb_bbox[:, 2:] -= mb_bbox[:, :2]
+        # (y_min, x_min, height, width) -> (center_y, center_x, height, width)
+        mb_bbox[:, :2] += mb_bbox[:, 2:] / 2
+
+        mb_loc = xp.empty_like(mb_bbox)
+        mb_loc[:, :2] = (mb_bbox[:, :2] - self._default_bbox[:, :2]) / \
+            (self._variance[0] * self._default_bbox[:, 2:])
+        mb_loc[:, 2:] = xp.log(mb_bbox[:, 2:] / self._default_bbox[:, 2:]) / \
+            self._variance[1]
+
+        # [0, n_fg_class - 1] -> [1, n_fg_class]
+        mb_label = label[index] + 1
+        # 0 is for background
+        mb_label[index < 0] = 0
+
+        return mb_loc.astype(np.float32), mb_label.astype(np.int32)
+
 def _unravel_index(index, shape):
     if isinstance(index, np.int64):
         return np.unravel_index(index, shape)
