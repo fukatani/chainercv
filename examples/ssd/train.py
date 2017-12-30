@@ -108,8 +108,8 @@ class Transform(object):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--model', choices=('ssd300', 'ssd512'), default='ssd300plus')
-    parser.add_argument('--batchsize', type=int, default=14)
+        '--model', choices=('ssd300', 'ssd512', 'ssd300plus', 'dssd300'), default='ssd300')
+    parser.add_argument('--batchsize', type=int, default=24)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--out', default='result')
     parser.add_argument('--resume')
