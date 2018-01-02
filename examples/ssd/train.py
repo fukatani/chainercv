@@ -14,7 +14,6 @@ from chainer.training import triggers
 from chainercv.datasets import voc_bbox_label_names
 from chainercv.datasets import VOCBboxDataset
 from chainercv.datasets import SiameseDataset
-from chainercv.datasets import MixupVOCDataset
 from chainercv.extensions import DetectionVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
 from chainercv.links.model.ssd import multibox_loss
@@ -107,11 +106,87 @@ class Transform(object):
         return img, mb_loc, mb_label
 
 
+class MixupTransform(object):
+
+    def __init__(self, coder, size, mean):
+        # to send cpu, make a copy
+        self.coder = copy.copy(coder)
+        self.coder.to_cpu()
+
+        self.size = size
+        self.mean = mean
+
+    def __call__(self, in_data):
+        # There are five data augmentation steps
+        # 1. Color augmentation
+        # 2. Random expansion
+        # 3. Random cropping
+        # 4. Resizing with random interpolation
+        # 5. Random horizontal flipping
+
+        data0, data1 = in_data
+
+        weight0 = np.random.uniform()
+        weight1 = 1.0 - weight0
+
+        mixup_img = np.zeros((data0[0].shape[0], self.size, self.size), dtype=np.float32)
+        mixup_locs = np.zeros((8732, 4), dtype=np.float32)
+        mixup_labels = np.zeros((8732, 21), dtype=np.float32)
+
+        for data, weight in zip((data0, data1), (weight0, weight1)):
+            img, bbox, label = data
+
+            # 1. Color augmentation
+            img = random_distort(img)
+
+            # 2. Random expansion
+            if np.random.randint(2):
+                img, param = transforms.random_expand(
+                    img, fill=self.mean, return_param=True)
+                bbox = transforms.translate_bbox(
+                    bbox, y_offset=param['y_offset'], x_offset=param['x_offset'])
+
+            # 3. Random cropping
+            img, param = random_crop_with_bbox_constraints(
+                img, bbox, return_param=True)
+            bbox, param = transforms.crop_bbox(
+                bbox, y_slice=param['y_slice'], x_slice=param['x_slice'],
+                allow_outside_center=False, return_param=True)
+            label = label[param['index']]
+
+            # 4. Resizing with random interpolatation
+            _, H, W = img.shape
+            img = resize_with_random_interpolation(img, (self.size, self.size))
+            bbox = transforms.resize_bbox(bbox, (H, W), (self.size, self.size))
+
+            # 5. Random horizontal flipping
+            img, params = transforms.random_flip(
+                img, x_random=True, return_param=True)
+            bbox = transforms.flip_bbox(
+                bbox, (self.size, self.size), x_flip=params['x_flip'])
+
+            # Preparation for SSD network
+            img -= self.mean
+            mixup_img += img * weight
+
+            mb_loc, mb_label = self.coder.encode(bbox, label)
+            mixup_locs += mb_loc * weight
+
+            temp_labels = np.zeros((8732, 21), dtype=np.float32)
+            for i in range(20):
+                idx = np.where(mb_label == i)
+                temp_labels[idx, i] = 1
+            temp_labels *= weight
+            mixup_labels += temp_labels
+
+        return mixup_img, mixup_locs, mixup_labels
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--model', choices=('ssd300', 'ssd512', 'ssd300plus', 'dssd300'), default='ssd300')
-    parser.add_argument('--batchsize', type=int, default=24)
+    parser.add_argument('--batchsize', type=int, default=1)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--out', default='result')
     parser.add_argument('--mixup', action='store_true', default=False)
@@ -142,14 +217,12 @@ def main():
         model.to_gpu()
 
     if args.mixup:
-        train = MixupVOCDataset(
-            SiameseDataset(
-            TransformDataset(
+        train = TransformDataset(
             ConcatenatedDataset(
                 VOCBboxDataset(year='2007', split='trainval'),
-                VOCBboxDataset(year='2012', split='trainval')
-            ))),
-            Transform(model.coder, model.insize, model.mean))
+                # VOCBboxDataset(year='2012', split='trainval')
+            ),
+            MixupTransform(model.coder, model.insize, model.mean))
     else:
         train = TransformDataset(
             ConcatenatedDataset(

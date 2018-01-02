@@ -115,23 +115,4 @@ class SiameseDataset(chainer.dataset.DatasetMixin):
                 idx0 = np.random.choice(self._label_to_index_0[label_0])
                 idx1 = np.random.choice(self._label_to_index_1[label_1])
 
-        return idx0, idx1
-
-
-class MixupVOCDataset(chainer.dataset.DatasetMixin):
-    def __init__(self, dataset):
-        self._dataset = dataset
-
-    def __len__(self):
-        return len(self._dataset)
-
-    def get_example(self, i):
-        idx0, idx1 = self._dataset.get_exmaple(i)
-        image0, bbox0, label0 = self._dataset[idx0]
-        image1, bbox1, label1 = self._dataset[idx0]
-        r = np.random.uniform()
-        image = r * image0 + (1-r) * image1
-        bbox = bbox0 + bbox1
-        label = label0 + label1
-        weight = [r] * len(label0) + [1-r] * len(label)
-        return image, bbox, label, np.array(weight)
+        return self._dataset_0[idx0], self._dataset_1[idx1]

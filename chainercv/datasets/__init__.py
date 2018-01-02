@@ -26,4 +26,3 @@ from chainercv.datasets.voc.voc_utils import voc_semantic_segmentation_ignore_la
 from chainercv.datasets.voc.voc_utils import voc_semantic_segmentation_label_colors  # NOQA
 from chainercv.datasets.voc.voc_utils import voc_semantic_segmentation_label_names  # NOQA
 from chainercv.datasets.siamese_dataset import SiameseDataset  # NOQA
-from chainercv.datasets.siamese_dataset import MixupVOCDataset  # NOQA
