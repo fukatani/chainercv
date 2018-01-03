@@ -4,6 +4,7 @@ import numpy as np
 
 import chainer
 import chainer.functions as F
+from chainercv.functions import softmax_cross_entropy
 
 
 def _elementwise_softmax_cross_entropy(x, t):
@@ -13,6 +14,11 @@ def _elementwise_softmax_cross_entropy(x, t):
     t = F.flatten(t)
     return F.reshape(
         F.softmax_cross_entropy(x, t, reduce='no'), shape)
+
+
+def _elementwise_softmax_cross_entropy_with_softlabel(x, t):
+    assert x.shape == t.shape
+    return F.sum(-F.log_softmax(x) * t, axis=-1)
 
 
 def _hard_negative(x, positive, k):
@@ -68,7 +74,10 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k):
 
     xp = chainer.cuda.get_array_module(gt_mb_labels.array)
 
-    positive = gt_mb_labels.array > 0
+    if gt_mb_labels.ndim == 2:
+        positive = gt_mb_labels.array > 0
+    else:
+        positive = gt_mb_labels.array[:, :, 1:].sum(axis=-1) > 0
     n_positive = positive.sum()
     if n_positive == 0:
         z = chainer.Variable(xp.zeros((), dtype=np.float32))
@@ -79,7 +88,11 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k):
     loc_loss *= positive.astype(loc_loss.dtype)
     loc_loss = F.sum(loc_loss) / n_positive
 
-    conf_loss = _elementwise_softmax_cross_entropy(mb_confs, gt_mb_labels)
+    if gt_mb_labels.ndim == 2:
+        conf_loss = _elementwise_softmax_cross_entropy(mb_confs, gt_mb_labels)
+    else:
+        conf_loss = _elementwise_softmax_cross_entropy_with_softlabel(mb_confs, gt_mb_labels)
+        k *= 2
     hard_negative = _hard_negative(conf_loss.array, positive, k)
     conf_loss *= xp.logical_or(positive, hard_negative).astype(conf_loss.dtype)
     conf_loss = F.sum(conf_loss) / n_positive

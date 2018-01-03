@@ -130,8 +130,8 @@ class MixupTransform(object):
         weight1 = 1.0 - weight0
 
         mixup_img = np.zeros((data0[0].shape[0], self.size, self.size), dtype=np.float32)
-        mixup_locs = np.zeros((8732, 4), dtype=np.float32)
-        mixup_labels = np.zeros((8732, 21), dtype=np.float32)
+        mixup_loc = np.zeros((8732, 4), dtype=np.float32)
+        mixup_label = np.zeros((8732, 21), dtype=np.float32)
 
         for data, weight in zip((data0, data1), (weight0, weight1)):
             img, bbox, label = data
@@ -170,23 +170,20 @@ class MixupTransform(object):
             mixup_img += img * weight
 
             mb_loc, mb_label = self.coder.encode(bbox, label)
-            mixup_locs += mb_loc * weight
+            mixup_loc += mb_loc * weight
 
-            temp_labels = np.zeros((8732, 21), dtype=np.float32)
-            for i in range(20):
-                idx = np.where(mb_label == i)
-                temp_labels[idx, i] = 1
-            temp_labels *= weight
-            mixup_labels += temp_labels
+            temp_label = np.eye(21)[mb_label]
+            temp_label *= weight
+            mixup_label += temp_label
 
-        return mixup_img, mixup_locs, mixup_labels
+        return mixup_img, mixup_loc, mixup_label
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--model', choices=('ssd300', 'ssd512', 'ssd300plus', 'dssd300'), default='ssd300')
-    parser.add_argument('--batchsize', type=int, default=1)
+    parser.add_argument('--batchsize', type=int, default=24)
     parser.add_argument('--gpu', type=int, default=0)
     parser.add_argument('--out', default='result')
     parser.add_argument('--mixup', action='store_true', default=False)
@@ -217,17 +214,15 @@ def main():
         model.to_gpu()
 
     if args.mixup:
+        a = VOCBboxDataset(year='2007', split='trainval')
         train = TransformDataset(
-            ConcatenatedDataset(
-                VOCBboxDataset(year='2007', split='trainval'),
-                # VOCBboxDataset(year='2012', split='trainval')
-            ),
+            SiameseDataset(a, a),
             MixupTransform(model.coder, model.insize, model.mean))
     else:
         train = TransformDataset(
             ConcatenatedDataset(
                 VOCBboxDataset(year='2007', split='trainval'),
-                VOCBboxDataset(year='2012', split='trainval')
+                # VOCBboxDataset(year='2012', split='trainval')
             ),
             Transform(model.coder, model.insize, model.mean))
     train_iter = chainer.iterators.MultiprocessIterator(train, args.batchsize, shared_mem=4000000)
