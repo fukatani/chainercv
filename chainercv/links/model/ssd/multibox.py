@@ -290,14 +290,19 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
 
         for i in range(len(aspect_ratios) - 1):
             if i == 0:
-                ksize = 3
-            elif i == 1 or i == 3:
-                ksize = 1
+                dec_ksize, con_ksize, dec_stride = 2, 2, 2
+            elif i == 1:
+                dec_ksize, con_ksize, dec_stride = 2, 2, 1
+            elif i == 2:
+                dec_ksize, con_ksize, dec_stride = 2, 3, 2
+            elif i == 3:
+                dec_ksize, con_ksize, dec_stride = 1, 3, 2
             else:
-                ksize = 2
+                dec_ksize, con_ksize, dec_stride = 2, 3, 2
 
             out_channel = 512
-            self.dec.add_link(DeconvolutionModule(out_channel, ksize, **init))
+            self.dec.add_link(DeconvolutionModule(out_channel, dec_ksize,
+                                                  con_ksize, dec_stride, **init))
 
     def __call__(self, xs):
         """Compute loc and conf from feature maps
@@ -352,7 +357,7 @@ class DeconvolutionalResidualMultibox(chainer.Chain):
 
 
 class DeconvolutionModule(chainer.Chain):
-    def __init__(self, out_channel, ksize, **init):
+    def __init__(self, out_channel, dec_ksize, con_ksize, dec_stride, **init):
         super(DeconvolutionModule, self).__init__()
         with self.init_scope():
             self.conv1_1 = L.Convolution2D(out_channel, 3, pad=1, **init)
@@ -360,9 +365,11 @@ class DeconvolutionModule(chainer.Chain):
             self.bn1_1 = L.BatchNormalization(out_channel)
             self.bn1_2 = L.BatchNormalization(out_channel)
 
-            self.deconv2_1 = L.Deconvolution2D(out_channel, ksize, stride=2, **init)
+            self.deconv2_1 = L.Deconvolution2D(out_channel, dec_ksize,
+                                               stride=dec_stride, **init)
             self.bn2_1 = L.BatchNormalization(out_channel)
-            self.conv2_1 = L.Convolution2D(out_channel, 3, pad=1, **init)
+            self.conv2_1 = L.Convolution2D(out_channel, con_ksize, 3, pad=1,
+                                           **init)
 
     def __call__(self, x1, x2):
         """Compute loc and conf from feature maps
