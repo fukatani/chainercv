@@ -4,7 +4,6 @@ import numpy as np
 
 import chainer
 import chainer.functions as F
-from chainercv.functions import softmax_cross_entropy
 
 
 def _elementwise_softmax_cross_entropy(x, t):
