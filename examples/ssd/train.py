@@ -214,18 +214,22 @@ def main():
         model.to_gpu()
 
     if args.mixup:
-        a = VOCBboxDataset(year='2007', split='trainval')
+        base_dataset = ConcatenatedDataset(
+            VOCBboxDataset(year='2007', split='trainval'),
+            VOCBboxDataset(year='2012', split='trainval')
+        )
         train = TransformDataset(
-            SiameseDataset(a, a),
+            SiameseDataset(base_dataset, base_dataset),
             MixupTransform(model.coder, model.insize, model.mean))
     else:
         train = TransformDataset(
             ConcatenatedDataset(
                 VOCBboxDataset(year='2007', split='trainval'),
-                # VOCBboxDataset(year='2012', split='trainval')
+                VOCBboxDataset(year='2012', split='trainval')
             ),
             Transform(model.coder, model.insize, model.mean))
     train_iter = chainer.iterators.MultiprocessIterator(train, args.batchsize, shared_mem=4000000)
+    # train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
 
     test = VOCBboxDataset(
         year='2007', split='test',
