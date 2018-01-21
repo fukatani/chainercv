@@ -179,6 +179,80 @@ class MixupTransform(object):
         return mixup_img, mixup_loc, mixup_label
 
 
+class MixupSameTransform(object):
+
+    def __init__(self, coder, size, mean):
+        # to send cpu, make a copy
+        self.coder = copy.copy(coder)
+        self.coder.to_cpu()
+
+        self.size = size
+        self.mean = mean
+
+    def __call__(self, in_data):
+        # There are five data augmentation steps
+        # 1. Color augmentation
+        # 2. Random expansion
+        # 3. Random cropping
+        # 4. Resizing with random interpolation
+        # 5. Random horizontal flipping
+
+        data0, data1 = in_data
+
+        weight0 = np.random.uniform()
+        weight1 = 1.0 - weight0
+
+        mixup_img = np.zeros((data0[0].shape[0], self.size, self.size), dtype=np.float32)
+        mixup_loc = np.zeros((8732, 4), dtype=np.float32)
+        mixup_label = np.zeros((8732, 21), dtype=np.float32)
+
+        data = data0
+        img, bbox, label = data
+
+        # 1. Color augmentation
+        img = random_distort(img)
+
+        # 2. Random expansion
+        if np.random.randint(2):
+            img, param = transforms.random_expand(
+                img, fill=self.mean, return_param=True)
+            bbox = transforms.translate_bbox(
+                bbox, y_offset=param['y_offset'], x_offset=param['x_offset'])
+
+        # 3. Random cropping
+        img, param = random_crop_with_bbox_constraints(
+            img, bbox, return_param=True)
+        bbox, param = transforms.crop_bbox(
+            bbox, y_slice=param['y_slice'], x_slice=param['x_slice'],
+            allow_outside_center=False, return_param=True)
+        label = label[param['index']]
+
+        # 4. Resizing with random interpolatation
+        _, H, W = img.shape
+        img = resize_with_random_interpolation(img, (self.size, self.size))
+        bbox = transforms.resize_bbox(bbox, (H, W), (self.size, self.size))
+
+        # 5. Random horizontal flipping
+        img, params = transforms.random_flip(
+            img, x_random=True, return_param=True)
+        bbox = transforms.flip_bbox(
+            bbox, (self.size, self.size), x_flip=params['x_flip'])
+
+        # Preparation for SSD network
+        for weight in (weight0, weight1):
+            img -= self.mean
+            mixup_img += img * weight
+
+            mb_loc, mb_label = self.coder.encode(bbox, label)
+            mixup_loc += mb_loc * weight
+
+            temp_label = np.eye(21)[mb_label]
+            temp_label *= weight
+            mixup_label += temp_label
+
+        return mixup_img, mixup_loc, mixup_label
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -220,7 +294,8 @@ def main():
         )
         train = TransformDataset(
             SiameseDataset(base_dataset, base_dataset),
-            MixupTransform(model.coder, model.insize, model.mean))
+            # MixupTransform(model.coder, model.insize, model.mean))
+            MixupSameTransform(model.coder, model.insize, model.mean))
     else:
         train = TransformDataset(
             ConcatenatedDataset(

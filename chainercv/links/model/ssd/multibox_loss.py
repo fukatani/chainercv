@@ -17,7 +17,23 @@ def _elementwise_softmax_cross_entropy(x, t):
 
 def _elementwise_softmax_cross_entropy_with_softlabel(x, t):
     assert x.shape == t.shape
-    return F.sum(-F.log_softmax(x) * t, axis=-1)
+    x1 = F.reshape(x, (-1, x.shape[-1]))
+    t2 = F.reshape(t, (-1, t.shape[-1]))
+    y = F.reshape(F.sum(-F.log_softmax(x1) * t2, axis=-1), x.shape[:-1])
+    return y
+
+
+# def _elementwise_softmax_cross_entropy_with_softlabel(x, t):
+#     assert x.shape == t.shape
+#     t1 = F.argmax(t, axis=-1)
+#     shape = t1.shape
+#     t1 = F.flatten(t1)
+#     x1 = F.reshape(x, (-1, x.shape[-1]))
+#     t2 = F.reshape(t, (-1, t.shape[-1]))
+#     y1 = F.reshape(F.softmax_cross_entropy(x1, t1, reduce='no'), shape)
+#     y2 = F.reshape(F.sum(-F.log_softmax(x1) * t2, axis=-1), shape)
+#     y = F.sum(-F.log_softmax(x) * t, axis=-1)
+#     return y2
 
 
 def _hard_negative(x, positive, k):
