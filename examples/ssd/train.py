@@ -294,8 +294,8 @@ def main():
         )
         train = TransformDataset(
             SiameseDataset(base_dataset, base_dataset),
-            # MixupTransform(model.coder, model.insize, model.mean))
-            MixupSameTransform(model.coder, model.insize, model.mean))
+            MixupTransform(model.coder, model.insize, model.mean))
+            # MixupSameTransform(model.coder, model.insize, model.mean))
     else:
         train = TransformDataset(
             ConcatenatedDataset(

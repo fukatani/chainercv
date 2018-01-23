@@ -97,7 +97,8 @@ class SiameseDataset(chainer.dataset.DatasetMixin):
 
     def get_example(self, i):
         if self._pos_ratio is None:
-            idx0 = np.random.choice(np.arange(len(self._dataset_0)))
+            # idx0 = np.random.choice(np.arange(len(self._dataset_0)))
+            idx0 = i
             idx1 = np.random.choice(np.arange(len(self._dataset_1)))
         else:
             # get pos-pair
