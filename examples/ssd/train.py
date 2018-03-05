@@ -18,6 +18,7 @@ from chainercv.extensions import DetectionVOCEvaluator
 from chainercv.links.model.ssd import GradientScaling
 from chainercv.links.model.ssd import multibox_loss
 from chainercv.links import DSSD300
+from chainercv.links import ESSD300
 from chainercv.links import ESSDResidual300
 from chainercv.links import SSD300
 from chainercv.links import SSD300Plus
@@ -284,7 +285,7 @@ def main():
             n_fg_class=len(voc_bbox_label_names),
             pretrained_model='imagenet')
     elif args.model == 'essd300':
-        model = ESSDResidual300(
+        model = ESSD300(
             n_fg_class=len(voc_bbox_label_names),
             pretrained_model='imagenet')
     elif args.model == 'essd300residual':

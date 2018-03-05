@@ -468,7 +468,7 @@ class ExtendedResidualMultibox(chainer.Chain):
 
 
 class ExtensionModule(chainer.Chain):
-    def __init__(self, **init):
+    def __init__(self, change_dec2=False, **init):
         super(ExtensionModule, self).__init__()
         with self.init_scope():
             self.conv1_1 = L.Convolution2D(512, 3, pad=1, **init)
@@ -476,12 +476,16 @@ class ExtensionModule(chainer.Chain):
             self.bn1_1 = L.BatchNormalization(512)
             self.bn1_2 = L.BatchNormalization(512)
 
-            self.deconv2_1 = L.Deconvolution2D(512, 2,
-                                               stride=2, **init)
+            if change_dec2:
+                self.deconv2_1 = L.Deconvolution2D(512, 3,
+                                                   stride=2, pad=1, **init)
+            else:
+                self.deconv2_1 = L.Deconvolution2D(512, 2,
+                                                   stride=2, **init)
             self.bn2_1 = L.BatchNormalization(512)
             self.conv2_1 = L.Convolution2D(512, 3, pad=1, **init)
 
-    def __call__(self, x1, x2, shrink_x2=False):
+    def __call__(self, x1, x2):
         """Compute loc and conf from feature maps
 
         This method computes :obj:`mb_locs` and :obj:`mb_confs`
@@ -517,8 +521,6 @@ class ExtensionModule(chainer.Chain):
         x2 = self.conv2_1(x2)
         x2 = self.bn2_1(x2)
         x2 = F.relu(x2)
-        if shrink_x2:
-            x2 = x2[:, :, 0: -1, 0: -1]
 
         return x1 + x2
 
@@ -571,7 +573,7 @@ class ExtendedMultibox(chainer.Chain):
         init = {'initialW': initialW, 'initial_bias': initial_bias}
 
         for i in range(3):
-            self.ext.add_link(ExtensionModule(**init))
+            self.ext.add_link(ExtensionModule(i==1, **init))
 
         for ar in aspect_ratios:
             n = (len(ar) + 1) * 2
@@ -586,7 +588,7 @@ class ExtendedMultibox(chainer.Chain):
         mb_confs = list()
 
         for i in reversed(range(3)):
-            xs[i] = self.ext[i](xs[i], xs[i + 1], i==1)
+            xs[i] = self.ext[i](xs[i], xs[i + 1])
 
         for i, x in enumerate(xs):
             x1, x2 = self.extconv[i](x)
