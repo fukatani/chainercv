@@ -9,6 +9,7 @@ from chainer import initializers
 import chainer.links as L
 
 from chainercv.links.model.ssd import Multibox
+from chainercv.links.model.ssd import MultiboxWithTCB
 from chainercv.links.model.ssd import ResidualMultibox
 from chainercv.links.model.ssd import DeconvolutionalResidualMultibox
 from chainercv.links.model.ssd import ExtendedMultibox
@@ -768,10 +769,10 @@ class VGG16Extractor320(VGG16RefineDet):
             Each variable contains a feature map.
         """
 
-        ys = super(VGG16Extractor512, self).__call__(x)
+        ys = super(VGG16Extractor320, self).__call__(x)
         h = ys[-1]
         h = F.relu(self.conv6_1(h))
-        h = F.relu(self.conv6_1(h))
+        h = F.relu(self.conv6_2(h))
         ys.append(h)
         return ys
 
@@ -831,7 +832,7 @@ class RefineDet320(SSD):
 
         super(RefineDet320, self).__init__(
             extractor=VGG16Extractor320(),
-            multibox=ExtendedMultibox(
+            multibox=MultiboxWithTCB(
                 n_class=n_fg_class + 1,
                 aspect_ratios=((2,), (2,), (2,), (2,))),
             steps=(8, 16, 32, 64),

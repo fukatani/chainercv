@@ -612,7 +612,7 @@ class ExtendedMultibox(chainer.Chain):
 class TransferConnectionEnd(chainer.Chain):
 
     def __init__(self, initialW=None, initial_bias=None):
-        super(TransferConnection, self).__init__()
+        super(TransferConnectionEnd, self).__init__()
         with self.init_scope():
             self.conv1 = L.Convolution2D(
                 256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
@@ -624,7 +624,7 @@ class TransferConnectionEnd(chainer.Chain):
                 256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
                 nobias=True)
 
-    def __call__(self, x, y):
+    def __call__(self, x):
         h1 = F.relu(self.conv1(x))
         h2 = self.conv2(h1)
         h3 = F.relu(h2)
@@ -667,7 +667,7 @@ class MultiboxWithTCB(chainer.Chain):
         self.n_class = n_class
         self.aspect_ratios = aspect_ratios
 
-        super(ExtendedResidualMultibox, self).__init__()
+        super(MultiboxWithTCB, self).__init__()
         with self.init_scope():
             self.arm_loc = chainer.ChainList()
             self.arm_conf = chainer.ChainList()
@@ -681,7 +681,7 @@ class MultiboxWithTCB(chainer.Chain):
             initial_bias = initializers.Zero()
         init = {'initialW': initialW, 'initial_bias': initial_bias}
 
-        for i in range(4):
+        for i in range(3):
             self.tcb.add_link(TransferConnection(**init))
         self.tcb.add_link(TransferConnectionEnd(**init))
 
@@ -701,7 +701,7 @@ class MultiboxWithTCB(chainer.Chain):
         odm_confs = list()
 
         ys = [None] * 4
-        ys[4] = self.tcb[3](xs[3])
+        ys[3] = self.tcb[3](xs[3])
         for i in reversed(range(3)):
             ys[i] = self.tcb[i](xs[i], ys[i + 1])
 

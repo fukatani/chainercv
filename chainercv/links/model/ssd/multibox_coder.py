@@ -70,7 +70,7 @@ class MultiboxCoder(object):
             raise ValueError('The length of aspect_ratios is wrong.')
         if not len(steps) == len(grids):
             raise ValueError('The length of steps is wrong.')
-        if not len(sizes) == len(grids) + 1:
+        if not len(sizes) == len(grids) + 1 and not len(sizes) == len(grids):
             raise ValueError('The length of sizes is wrong.')
 
         default_bbox = list()
@@ -83,8 +83,9 @@ class MultiboxCoder(object):
                 s = sizes[k]
                 default_bbox.append((cy, cx, s, s))
 
-                s = np.sqrt(sizes[k] * sizes[k + 1])
-                default_bbox.append((cy, cx, s, s))
+                if len(sizes) == len(grids) + 1:
+                    s = np.sqrt(sizes[k] * sizes[k + 1])
+                    default_bbox.append((cy, cx, s, s))
 
                 s = sizes[k]
                 for ar in aspect_ratios[k]:
