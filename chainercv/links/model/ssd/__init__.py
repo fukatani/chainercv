@@ -4,6 +4,7 @@ from chainercv.links.model.ssd.multibox import ExtendedMultibox  # NOQA
 from chainercv.links.model.ssd.multibox import ExtendedResidualMultibox  # NOQA
 from chainercv.links.model.ssd.multibox import ResidualMultibox  # NOQA
 from chainercv.links.model.ssd.multibox import Multibox  # NOQA
+from chainercv.links.model.ssd.multibox import MultiboxWithTCB  # NOQA
 from chainercv.links.model.ssd.multibox_coder import MultiboxCoder  # NOQA
 from chainercv.links.model.ssd.multibox_coder import MultiboxCoderSoftlabel  # NOQA
 from chainercv.links.model.ssd.multibox_loss import multibox_loss  # NOQA
@@ -15,6 +16,7 @@ from chainercv.links.model.ssd.ssd_vgg16 import ESSDResidual300  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import SSD300  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import SSD300Plus  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import SSD512  # NOQA
+from chainercv.links.model.ssd.ssd_vgg16 import RefineDet320  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import VGG16  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import VGG16Extractor300  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import VGG16Extractor512  # NOQA

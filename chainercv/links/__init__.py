@@ -13,4 +13,5 @@ from chainercv.links.model.ssd import ESSDResidual300  # NOQA
 from chainercv.links.model.ssd import SSD300  # NOQA
 from chainercv.links.model.ssd import SSD300Plus  # NOQA
 from chainercv.links.model.ssd import SSD512  # NOQA
+from chainercv.links.model.ssd import RefineDet320  # NOQA
 from chainercv.links.model.vgg import VGG16  # NOQA

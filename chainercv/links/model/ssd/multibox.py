@@ -607,3 +607,129 @@ class ExtendedMultibox(chainer.Chain):
         mb_confs = F.concat(mb_confs, axis=1)
 
         return mb_locs, mb_confs
+
+
+class TransferConnectionEnd(chainer.Chain):
+
+    def __init__(self, initialW=None, initial_bias=None):
+        super(TransferConnection, self).__init__()
+        with self.init_scope():
+            self.conv1 = L.Convolution2D(
+                256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+            self.conv2 = L.Convolution2D(
+                256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+            self.conv3 = L.Convolution2D(
+                256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+
+    def __call__(self, x, y):
+        h1 = F.relu(self.conv1(x))
+        h2 = self.conv2(h1)
+        h3 = F.relu(h2)
+        h4 = F.relu(self.conv3(h3))
+        return h4
+
+
+class TransferConnection(chainer.Chain):
+
+    def __init__(self, initialW=None, initial_bias=None):
+        super(TransferConnection, self).__init__()
+        with self.init_scope():
+            self.conv1 = L.Convolution2D(
+                256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+            self.conv2 = L.Convolution2D(
+                256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+            self.deconv = L.Deconvolution2D(
+                256, 4, stride=2, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+            self.conv3 = L.Convolution2D(
+                256, 3, pad=0, initialW=initialW, initial_bias=initial_bias,
+                nobias=True)
+
+    def __call__(self, x, y):
+        h1 = F.relu(self.conv1(x))
+        h2 = self.conv2(h1)
+        d1 = self.deconv(y)
+        h3 = F.relu(h2 + d1)
+        h4 = F.relu(self.conv3(h3))
+        return h4
+
+
+class MultiboxWithTCB(chainer.Chain):
+
+    def __init__(
+            self, n_class, aspect_ratios,
+            initialW=None, initial_bias=None):
+        self.n_class = n_class
+        self.aspect_ratios = aspect_ratios
+
+        super(ExtendedResidualMultibox, self).__init__()
+        with self.init_scope():
+            self.arm_loc = chainer.ChainList()
+            self.arm_conf = chainer.ChainList()
+            self.tcb = chainer.ChainList()
+            self.odm_loc = chainer.ChainList()
+            self.odm_conf = chainer.ChainList()
+
+        if initialW is None:
+            initialW = initializers.LeCunUniform()
+        if initial_bias is None:
+            initial_bias = initializers.Zero()
+        init = {'initialW': initialW, 'initial_bias': initial_bias}
+
+        for i in range(4):
+            self.tcb.add_link(TransferConnection(**init))
+        self.tcb.add_link(TransferConnectionEnd(**init))
+
+        for ar in aspect_ratios:
+            n = (len(ar) + 1) * 2
+            self.arm_loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))
+            self.arm_conf.add_link(L.Convolution2D(n, 3, pad=1, **init))
+            self.odm_loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))
+            self.odm_conf.add_link(L.Convolution2D(
+                n * self.n_class, 3, pad=1, **init))
+
+    def __call__(self, xs):
+
+        arm_locs = list()
+        arm_confs = list()
+        odm_locs = list()
+        odm_confs = list()
+
+        ys = [None] * 4
+        ys[4] = self.tcb[3](xs[3])
+        for i in reversed(range(3)):
+            ys[i] = self.tcb[i](xs[i], ys[i + 1])
+
+        for i, x in enumerate(xs):
+            arm_loc = self.arm_loc[i](x)
+            arm_loc = F.transpose(arm_loc, (0, 2, 3, 1))
+            arm_loc = F.reshape(arm_loc, (arm_loc.shape[0], -1, 4))
+            arm_locs.append(arm_loc)
+
+            arm_conf = self.arm_conf[i](x)
+            arm_conf = F.transpose(arm_conf, (0, 2, 3, 1))
+            arm_conf = F.reshape(
+                arm_conf, (arm_conf.shape[0], -1, 1))
+            arm_confs.append(arm_conf)
+
+        arm_locs = F.concat(arm_locs, axis=1)
+        arm_confs = F.concat(arm_confs, axis=1)
+
+        for i, y in enumerate(ys):
+            odm_loc = self.odm_loc[i](y)
+            odm_loc = F.transpose(odm_loc, (0, 2, 3, 1))
+            odm_loc = F.reshape(odm_loc, (odm_loc.shape[0], -1, 4))
+            odm_locs.append(odm_loc)
+
+            odm_conf = self.odm_conf[i](y)
+            odm_conf = F.transpose(odm_conf, (0, 2, 3, 1))
+            odm_conf = F.reshape(
+                odm_conf, (odm_conf.shape[0], -1, self.n_class))
+            odm_confs.append(odm_conf)
+
+        return arm_locs, arm_confs, odm_locs, odm_confs

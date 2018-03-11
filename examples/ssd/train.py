@@ -23,6 +23,7 @@ from chainercv.links import ESSDResidual300
 from chainercv.links import SSD300
 from chainercv.links import SSD300Plus
 from chainercv.links import SSD512
+from chainercv.links import RefineDet320
 from chainercv import transforms
 
 from chainercv.links.model.ssd import random_crop_with_bbox_constraints
@@ -48,6 +49,29 @@ class MultiboxTrainChain(chainer.Chain):
         chainer.reporter.report(
             {'loss': loss, 'loss/loc': loc_loss, 'loss/conf': conf_loss},
             self)
+
+        return loss
+
+
+class RefineDetTrainChain(chainer.Chain):
+
+    def __init__(self, model, k=3):
+        super(RefineDetTrainChain, self).__init__()
+        with self.init_scope():
+            self.model = model
+        self.k = k
+
+    def __call__(self, imgs, gt_mb_locs, gt_mb_labels):
+        arm_locs, arm_confs, odm_locs, odm_confs = self.model(imgs)
+        arm_loc_loss, arm_conf_loss = multibox_loss(
+            odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k)
+        odm_loc_loss, odm_conf_loss = multibox_loss(
+            odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k)
+        loss = arm_loc_loss + arm_conf_loss + odm_loc_loss + arm_conf_loss
+
+        chainer.reporter.report(
+            {'loss': loss, 'loss/loc': odm_loc_loss,
+             'loss/conf': odm_conf_loss}, self)
 
         return loss
 
@@ -259,7 +283,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--model', choices=('ssd300', 'ssd512', 'ssd300plus', 'dssd300',
-                            'essd300', 'essd300residual'),
+                            'essd300', 'essd300residual', 'refinedet320'),
         default='ssd300')
     parser.add_argument('--batchsize', type=int, default=24)
     parser.add_argument('--gpu', type=int, default=0)
@@ -292,9 +316,16 @@ def main():
         model = ESSDResidual300(
             n_fg_class=len(voc_bbox_label_names),
             pretrained_model='imagenet')
+    elif args.model == 'refinedet320':
+        model = RefineDet320(
+            n_fg_class=len(voc_bbox_label_names),
+            pretrained_model='imagenet')
 
     model.use_preset('evaluate')
-    train_chain = MultiboxTrainChain(model)
+    if isinstance(model, RefineDet320):
+        train_chain = RefineDetTrainChain(model)
+    else:
+        train_chain = MultiboxTrainChain(model)
     if args.gpu >= 0:
         chainer.cuda.get_device_from_id(args.gpu).use()
         model.to_gpu()

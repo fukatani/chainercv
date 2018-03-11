@@ -650,3 +650,193 @@ class ESSD300(SSD):
 
         if path:
             _load_npz(path, self)
+
+
+class VGG16RefineDet(chainer.Chain):
+    """An extended VGG-16 model for SSD300 and SSD512.
+
+    This is an extended VGG-16 model proposed in [#]_.
+    The differences from original VGG-16 [#]_ are shown below.
+
+    * :obj:`conv5_1`, :obj:`conv5_2` and :obj:`conv5_3` are changed from \
+    :class:`~chainer.links.Convolution2d` to \
+    :class:`~chainer.links.DilatedConvolution2d`.
+    * :class:`~chainercv.links.model.ssd.Normalize` is \
+    inserted after :obj:`conv4_3`.
+    * The parameters of max pooling after :obj:`conv5_3` are changed.
+    * :obj:`fc6` and :obj:`fc7` are converted to :obj:`conv6` and :obj:`conv7`.
+
+    .. [#] Wei Liu, Dragomir Anguelov, Dumitru Erhan,
+       Christian Szegedy, Scott Reed, Cheng-Yang Fu, Alexander C. Berg.
+       SSD: Single Shot MultiBox Detector. ECCV 2016.
+    .. [#] Karen Simonyan, Andrew Zisserman.
+       Very Deep Convolutional Networks for Large-Scale Image Recognition.
+       ICLR 2015.
+    """
+
+    def __init__(self):
+        super(VGG16RefineDet, self).__init__()
+        with self.init_scope():
+            self.conv1_1 = L.Convolution2D(64, 3, pad=1)
+            self.conv1_2 = L.Convolution2D(64, 3, pad=1)
+
+            self.conv2_1 = L.Convolution2D(128, 3, pad=1)
+            self.conv2_2 = L.Convolution2D(128, 3, pad=1)
+
+            self.conv3_1 = L.Convolution2D(256, 3, pad=1)
+            self.conv3_2 = L.Convolution2D(256, 3, pad=1)
+            self.conv3_3 = L.Convolution2D(256, 3, pad=1)
+
+            self.conv4_1 = L.Convolution2D(512, 3, pad=1)
+            self.conv4_2 = L.Convolution2D(512, 3, pad=1)
+            self.conv4_3 = L.Convolution2D(512, 3, pad=1)
+            self.norm4 = Normalize(512, initial=initializers.Constant(20))
+
+            self.conv5_1 = L.DilatedConvolution2D(512, 3, pad=1)
+            self.conv5_2 = L.DilatedConvolution2D(512, 3, pad=1)
+            self.conv5_3 = L.DilatedConvolution2D(512, 3, pad=1)
+
+            self.conv6 = L.DilatedConvolution2D(1024, 3, pad=6, dilate=6)
+            self.conv7 = L.Convolution2D(1024, 1)
+
+    def __call__(self, x):
+        ys = list()
+
+        h = F.relu(self.conv1_1(x))
+        h = F.relu(self.conv1_2(h))
+        h = F.max_pooling_2d(h, 2)
+
+        h = F.relu(self.conv2_1(h))
+        h = F.relu(self.conv2_2(h))
+        h = F.max_pooling_2d(h, 2)
+
+        h = F.relu(self.conv3_1(h))
+        h = F.relu(self.conv3_2(h))
+        h = F.relu(self.conv3_3(h))
+        h = F.max_pooling_2d(h, 2)
+
+        h = F.relu(self.conv4_1(h))
+        h = F.relu(self.conv4_2(h))
+        h = F.relu(self.conv4_3(h))
+        ys.append(self.norm4(h))
+        h = F.max_pooling_2d(h, 2)
+
+        h = F.relu(self.conv5_1(h))
+        h = F.relu(self.conv5_2(h))
+        h = F.relu(self.conv5_3(h))
+        ys.append(self.norm4(h))
+        h = F.max_pooling_2d(h, 3, stride=1, pad=1)
+
+        h = F.relu(self.conv6(h))
+        h = F.relu(self.conv7(h))
+        ys.append(h)
+
+        return ys
+
+
+class VGG16Extractor320(VGG16RefineDet):
+    """A VGG-16 based feature extractor for RefineDet320.
+
+    """
+
+    insize = 320
+    grids = (40, 20, 20, 11)
+
+    def __init__(self):
+        init = {
+            'initialW': initializers.LeCunUniform(),
+            'initial_bias': initializers.Zero(),
+        }
+        super(VGG16Extractor320, self).__init__()
+        with self.init_scope():
+            self.conv6_1 = L.Convolution2D(256, 1, **init)
+            self.conv6_2 = L.Convolution2D(512, 3, stride=2, pad=1, **init)
+
+    def __call__(self, x):
+        """Compute feature maps from a batch of images.
+
+        This method extracts feature maps from
+        :obj:`conv4_3`, :obj:`conv7`, :obj:`conv8_2`,
+        :obj:`conv9_2`, :obj:`conv10_2`, :obj:`conv11_2`, and :obj:`conv12_2`.
+
+        Args:
+            x (ndarray): An array holding a batch of images.
+                The images should be resized to :math:`512\\times 512`.
+
+        Returns:
+            list of Variable:
+            Each variable contains a feature map.
+        """
+
+        ys = super(VGG16Extractor512, self).__call__(x)
+        h = ys[-1]
+        h = F.relu(self.conv6_1(h))
+        h = F.relu(self.conv6_1(h))
+        ys.append(h)
+        return ys
+
+
+class RefineDet320(SSD):
+    """Deconvolutional Single Shot Multibox Detector with 300x300 inputs.
+
+    This is a model of Single Shot Multibox Detector [#]_.
+    This model uses :class:`~chainercv.links.model.ssd.VGG16Extractor300` as
+    its feature extractor.
+
+    .. [#] Wei Liu, Dragomir Anguelov, Dumitru Erhan, Christian Szegedy,
+       Scott Reed, Cheng-Yang Fu, Alexander C. Berg.
+       SSD: Single Shot MultiBox Detector. ECCV 2016.
+
+    Args:
+       n_fg_class (int): The number of classes excluding the background.
+       pretrained_model (str): The weight file to be loaded.
+           This can take :obj:`'voc0712'`, `filepath` or :obj:`None`.
+           The default value is :obj:`None`.
+
+            * :obj:`'voc0712'`: Load weights trained on trainval split of \
+                PASCAL VOC 2007 and 2012. \
+                The weight file is downloaded and cached automatically. \
+                :obj:`n_fg_class` must be :obj:`20` or :obj:`None`. \
+                These weights were converted from the Caffe model provided by \
+                `the original implementation \
+                <https://github.com/weiliu89/caffe/tree/ssd>`_. \
+                The conversion code is `chainercv/examples/ssd/caffe2npz.py`.
+            * :obj:`'imagenet'`: Load weights of VGG-16 trained on ImageNet. \
+                The weight file is downloaded and cached automatically. \
+                This option initializes weights partially and the rests are \
+                initialized randomly. In this case, :obj:`n_fg_class` \
+                can be set to any number.
+            * `filepath`: A path of npz file. In this case, :obj:`n_fg_class` \
+                must be specified properly.
+            * :obj:`None`: Do not load weights.
+
+    """
+
+    _models = {
+        'voc0712': {
+            'n_fg_class': 20,
+            'url': 'https://github.com/yuyu2172/share-weights/releases/'
+            'download/0.0.3/ssd300_voc0712_2017_06_06.npz'
+        },
+        'imagenet': {
+            'n_fg_class': None,
+            'url': 'https://github.com/yuyu2172/share-weights/releases/'
+            'download/0.0.3/ssd_vgg16_imagenet_2017_06_09.npz'
+        },
+    }
+
+    def __init__(self, n_fg_class=None, pretrained_model=None):
+        n_fg_class, path = _check_pretrained_model(
+            n_fg_class, pretrained_model, self._models)
+
+        super(RefineDet320, self).__init__(
+            extractor=VGG16Extractor320(),
+            multibox=ExtendedMultibox(
+                n_class=n_fg_class + 1,
+                aspect_ratios=((2,), (2,), (2,), (2,))),
+            steps=(8, 16, 32, 64),
+            sizes=(32, 64, 128, 256),
+            mean=_imagenet_mean)
+
+        if path:
+            _load_npz(path, self)
