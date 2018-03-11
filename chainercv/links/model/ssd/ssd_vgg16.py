@@ -697,7 +697,7 @@ class VGG16RefineDet(chainer.Chain):
             self.conv5_2 = L.DilatedConvolution2D(512, 3, pad=1)
             self.conv5_3 = L.DilatedConvolution2D(512, 3, pad=1)
 
-            self.conv6 = L.DilatedConvolution2D(1024, 3, pad=6, dilate=6)
+            self.conv6 = L.DilatedConvolution2D(1024, 3, pad=3, dilate=3)
             self.conv7 = L.Convolution2D(1024, 1)
 
     def __call__(self, x):
@@ -726,7 +726,7 @@ class VGG16RefineDet(chainer.Chain):
         h = F.relu(self.conv5_2(h))
         h = F.relu(self.conv5_3(h))
         ys.append(self.norm4(h))
-        h = F.max_pooling_2d(h, 3, stride=1, pad=1)
+        h = F.max_pooling_2d(h, 2, stride=2, pad=0)
 
         h = F.relu(self.conv6(h))
         h = F.relu(self.conv7(h))
@@ -741,7 +741,7 @@ class VGG16Extractor320(VGG16RefineDet):
     """
 
     insize = 320
-    grids = (40, 20, 20, 11)
+    grids = (40, 20, 10, 6)
 
     def __init__(self):
         init = {
@@ -839,5 +839,5 @@ class RefineDet320(SSD):
             sizes=(32, 64, 128, 256),
             mean=_imagenet_mean)
 
-        if path:
-            _load_npz(path, self)
+        # if path:
+        #     _load_npz(path, self)
