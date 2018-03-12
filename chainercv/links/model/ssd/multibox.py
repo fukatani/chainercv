@@ -686,7 +686,7 @@ class MultiboxWithTCB(chainer.Chain):
         self.tcb.add_link(TransferConnectionEnd(**init))
 
         for ar in aspect_ratios:
-            n = (len(ar) + 1) * 2
+            n = (len(ar) + 1) * 2 - 1
             self.arm_loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))
             self.arm_conf.add_link(L.Convolution2D(n, 3, pad=1, **init))
             self.odm_loc.add_link(L.Convolution2D(n * 4, 3, pad=1, **init))

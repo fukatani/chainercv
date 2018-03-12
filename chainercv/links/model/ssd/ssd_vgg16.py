@@ -741,7 +741,7 @@ class VGG16Extractor320(VGG16RefineDet):
     """
 
     insize = 320
-    grids = (40, 20, 10, 6)
+    grids = (40, 20, 10, 5)
 
     def __init__(self):
         init = {
@@ -822,7 +822,7 @@ class RefineDet320(SSD):
         'imagenet': {
             'n_fg_class': None,
             'url': 'https://github.com/yuyu2172/share-weights/releases/'
-            'download/0.0.3/ssd_vgg16_imagenet_2017_06_09.npz'
+            'download/0.0.3/VGG_ILSVRC_16_layers_fc_reduced.npz'
         },
     }
 
@@ -839,5 +839,5 @@ class RefineDet320(SSD):
             sizes=(32, 64, 128, 256),
             mean=_imagenet_mean)
 
-        # if path:
-        #     _load_npz(path, self)
+        if path:
+            _load_npz(path, self)
