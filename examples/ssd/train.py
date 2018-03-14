@@ -1,6 +1,7 @@
 import argparse
 import copy
 import numpy as np
+import cupy
 
 import chainer
 from chainer.datasets import ConcatenatedDataset
@@ -63,15 +64,27 @@ class RefineDetTrainChain(chainer.Chain):
 
     def __call__(self, imgs, gt_mb_locs, gt_mb_labels):
         arm_locs, arm_confs, odm_locs, odm_confs = self.model(imgs)
+
+        gt_objectness_label = gt_mb_labels.copy()
+        gt_objectness_label[gt_objectness_label > 0] = 1
+
         arm_loc_loss, arm_conf_loss = multibox_loss(
-            odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k)
+            arm_locs, arm_confs, gt_mb_locs.copy(), gt_objectness_label, self.k,
+            two_class=True)
+
+        objectness = cupy.zeros_like(arm_confs.array)
+        objectness[arm_confs.array >= 0.01] = 1
         odm_loc_loss, odm_conf_loss = multibox_loss(
-            odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k)
-        loss = arm_loc_loss + arm_conf_loss + odm_loc_loss + arm_conf_loss
+            odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k,
+            objectness=objectness)
+        loss = arm_loc_loss + arm_conf_loss + odm_loc_loss + odm_conf_loss
 
         chainer.reporter.report(
-            {'loss': loss, 'loss/loc': odm_loc_loss,
-             'loss/conf': odm_conf_loss}, self)
+            {'loss': loss,
+             'arm_loss/loc': arm_loc_loss,
+             'arm_loss/conf': arm_conf_loss,
+             'odm_loss/loc': odm_loc_loss,
+             'odm_loss/conf': odm_conf_loss}, self)
 
         return loss
 
@@ -381,7 +394,8 @@ def main():
     trainer.extend(extensions.observe_lr(), trigger=log_interval)
     trainer.extend(extensions.PrintReport(
         ['epoch', 'iteration', 'lr',
-         'main/loss', 'main/loss/loc', 'main/loss/conf',
+         'main/loss', 'main/arm_loss/loc', 'main/arm_loss/conf',
+         'main/odm_loss/loc', 'main/odm_loss/conf',
          'validation/main/map']),
         trigger=log_interval)
     trainer.extend(extensions.ProgressBar(update_interval=10))

@@ -6,16 +6,21 @@ import chainer
 import chainer.functions as F
 
 
-def _elementwise_softmax_cross_entropy(x, t):
+def _elementwise_softmax_cross_entropy(x, t, two_class):
     assert x.shape[:-1] == t.shape
     shape = t.shape
-    x = F.reshape(x, (-1, x.shape[-1]))
     t = F.flatten(t)
-    return F.reshape(
-        F.softmax_cross_entropy(x, t, reduce='no'), shape)
+    if two_class:
+        x = F.flatten(x)
+        return F.reshape(
+            F.sigmoid_cross_entropy(x, t, reduce='no'), shape)
+    else:
+        x = F.reshape(x, (-1, x.shape[-1]))
+        return F.reshape(
+            F.softmax_cross_entropy(x, t, reduce='no'), shape)
 
 
-def _elementwise_softmax_cross_entropy_with_softlabel(x, t):
+def _elementwise_softmax_cross_entropy_with_softlabel(x, t, two_class):
     assert x.shape == t.shape
     x1 = F.reshape(x, (-1, x.shape[-1]))
     t2 = F.reshape(t, (-1, t.shape[-1]))
@@ -42,7 +47,8 @@ def _hard_negative(x, positive, k):
     return hard_negative
 
 
-def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k):
+def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=False,
+                  objectness=None):
     """Computes multibox losses.
 
     This is a loss function used in [#]_.
@@ -99,17 +105,21 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k):
         return z, z
 
     loc_loss = F.huber_loss(mb_locs, gt_mb_locs, 1, reduce='no')
+    if objectness is not None:
+        loc_loss *= objectness
     loc_loss = F.sum(loc_loss, axis=-1)
     loc_loss *= positive.astype(loc_loss.dtype)
     loc_loss = F.sum(loc_loss) / n_positive
 
     if gt_mb_labels.ndim == 2:
-        conf_loss = _elementwise_softmax_cross_entropy(mb_confs, gt_mb_labels)
+        conf_loss = _elementwise_softmax_cross_entropy(mb_confs, gt_mb_labels, two_class)
     else:
-        conf_loss = _elementwise_softmax_cross_entropy_with_softlabel(mb_confs, gt_mb_labels)
+        conf_loss = _elementwise_softmax_cross_entropy_with_softlabel(mb_confs, gt_mb_labels, two_class)
         k *= 2
     hard_negative = _hard_negative(conf_loss.array, positive, k)
     conf_loss *= xp.logical_or(positive, hard_negative).astype(conf_loss.dtype)
+    if objectness is not None:
+        conf_loss *= objectness.reshape(objectness.shape[0], objectness.shape[1])
     conf_loss = F.sum(conf_loss) / n_positive
 
     return loc_loss, conf_loss
