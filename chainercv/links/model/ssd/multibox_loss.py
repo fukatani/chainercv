@@ -48,7 +48,7 @@ def _hard_negative(x, positive, k):
 
 
 def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=False,
-                  objectness=None):
+                  objectness=None, arm_locs=None):
     """Computes multibox losses.
 
     This is a loss function used in [#]_.
@@ -94,6 +94,9 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=Fals
     gt_mb_labels = chainer.as_variable(gt_mb_labels)
 
     xp = chainer.cuda.get_array_module(gt_mb_labels.array)
+
+    if arm_locs is not None:
+        gt_mb_locs -= arm_locs
 
     if gt_mb_labels.ndim == 2:
         positive = gt_mb_labels.array > 0

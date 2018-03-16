@@ -76,7 +76,7 @@ class RefineDetTrainChain(chainer.Chain):
         objectness[arm_confs.array >= 0.01] = 1
         odm_loc_loss, odm_conf_loss = multibox_loss(
             odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k,
-            objectness=objectness)
+            objectness=objectness, arm_locs=arm_locs)
         loss = arm_loc_loss + arm_conf_loss + odm_loc_loss + odm_conf_loss
 
         chainer.reporter.report(
