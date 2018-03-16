@@ -1,7 +1,7 @@
 import argparse
 import copy
 import numpy as np
-import cupy
+from chainer import cuda
 
 import chainer
 from chainer.datasets import ConcatenatedDataset
@@ -72,7 +72,8 @@ class RefineDetTrainChain(chainer.Chain):
             arm_locs, arm_confs, gt_mb_locs.copy(), gt_objectness_label, self.k,
             two_class=True)
 
-        objectness = cupy.zeros_like(arm_confs.array)
+        xp = cuda.get_array_module(arm_confs)
+        objectness = xp.zeros_like(arm_confs.array)
         objectness[arm_confs.array >= 0.01] = 1
         odm_loc_loss, odm_conf_loss = multibox_loss(
             odm_locs, odm_confs, gt_mb_locs, gt_mb_labels, self.k,

@@ -218,3 +218,35 @@ class SSD(chainer.Chain):
             scores.append(chainer.cuda.to_cpu(score))
 
         return bboxes, labels, scores
+
+
+class RefineDetSSD(SSD):
+    def predict(self, imgs):
+        x = list()
+        sizes = list()
+        for img in imgs:
+            _, H, W = img.shape
+            img = self._prepare(img)
+            x.append(self.xp.array(img))
+            sizes.append((H, W))
+
+        with chainer.using_config('train', False), \
+                chainer.function.no_backprop_mode():
+            x = chainer.Variable(self.xp.stack(x))
+            arm_locs, arm_confs, odm_locs, odm_confs = self(x)
+        arm_locs, arm_confs = arm_locs.array, arm_confs.array
+        odm_locs, odm_confs = odm_locs.array, odm_confs.array
+
+        bboxes = list()
+        labels = list()
+        scores = list()
+        for mb_loc, mb_conf, size in zip(odm_locs, odm_confs, sizes):
+            bbox, label, score = self.coder.decode(
+                mb_loc, mb_conf, self.nms_thresh, self.score_thresh)
+            bbox = transforms.resize_bbox(
+                bbox, (self.insize, self.insize), size)
+            bboxes.append(chainer.cuda.to_cpu(bbox))
+            labels.append(chainer.cuda.to_cpu(label))
+            scores.append(chainer.cuda.to_cpu(score))
+
+        return bboxes, labels, scores

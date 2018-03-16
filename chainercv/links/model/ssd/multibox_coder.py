@@ -354,3 +354,56 @@ def _unravel_index(index, shape):
         index //= s
 
     return tuple(indices[::-1])
+
+
+class RefineDetMultiboxCoder(MultiboxCoder):
+    def decode(self, arm_loc, arm_conf, odm_loc, odm_conf, nms_thresh=0.45, score_thresh=0.6):
+        xp = self.xp
+
+        # (center_y, center_x, height, width)
+        mb_bbox = self._default_bbox.copy()
+
+        mb_bbox[:, :2] += arm_loc[:, :2] * self._variance[0] \
+                          * self._default_bbox[:, 2:]
+        mb_bbox[:, 2:] *= xp.exp(arm_loc[:, 2:] * self._variance[1])
+
+        mb_bbox[:, :2] += odm_loc[:, :2] * self._variance[0] \
+                          * self._default_bbox[:, 2:]
+        mb_bbox[:, 2:] *= xp.exp(odm_loc[:, 2:] * self._variance[1])
+
+        # (center_y, center_x, height, width) -> (y_min, x_min, height, width)
+        mb_bbox[:, :2] -= mb_bbox[:, 2:] / 2
+        # (center_y, center_x, height, width) -> (y_min, x_min, y_max, x_max)
+        mb_bbox[:, 2:] += mb_bbox[:, :2]
+
+        # softmax
+        mb_score = xp.exp(odm_conf)
+        mb_score /= mb_score.sum(axis=1, keepdims=True)
+
+        bbox = list()
+        label = list()
+        score = list()
+        for l in range(odm_conf.shape[1] - 1):
+            bbox_l = mb_bbox
+            # the l-th class corresponds for the (l + 1)-th column.
+            score_l = mb_score[:, l + 1]
+
+            mask = score_l >= score_thresh
+            bbox_l = bbox_l[mask]
+            score_l = score_l[mask]
+
+            if nms_thresh is not None:
+                indices = utils.non_maximum_suppression(
+                    bbox_l, nms_thresh, score_l)
+                bbox_l = bbox_l[indices]
+                score_l = score_l[indices]
+
+            bbox.append(bbox_l)
+            label.append(xp.array((l,) * len(bbox_l)))
+            score.append(score_l)
+
+        bbox = xp.vstack(bbox).astype(np.float32)
+        label = xp.hstack(label).astype(np.int32)
+        score = xp.hstack(score).astype(np.float32)
+
+        return bbox, label, score

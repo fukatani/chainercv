@@ -9,6 +9,7 @@ from chainercv.links.model.ssd.multibox_coder import MultiboxCoder  # NOQA
 from chainercv.links.model.ssd.multibox_coder import MultiboxCoderSoftlabel  # NOQA
 from chainercv.links.model.ssd.multibox_loss import multibox_loss  # NOQA
 from chainercv.links.model.ssd.normalize import Normalize  # NOQA
+from chainercv.links.model.ssd.ssd import RefineDetSSD  # NOQA
 from chainercv.links.model.ssd.ssd import SSD  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import DSSD300  # NOQA
 from chainercv.links.model.ssd.ssd_vgg16 import ESSD300  # NOQA

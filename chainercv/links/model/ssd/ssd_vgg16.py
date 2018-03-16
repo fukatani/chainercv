@@ -15,6 +15,7 @@ from chainercv.links.model.ssd import DeconvolutionalResidualMultibox
 from chainercv.links.model.ssd import ExtendedMultibox
 from chainercv.links.model.ssd import ExtendedResidualMultibox
 from chainercv.links.model.ssd import Normalize
+from chainercv.links.model.ssd import RefineDetSSD
 from chainercv.links.model.ssd import SSD
 from chainercv.utils import download_model
 
@@ -777,7 +778,7 @@ class VGG16Extractor320(VGG16RefineDet):
         return ys
 
 
-class RefineDet320(SSD):
+class RefineDet320(RefineDetSSD):
     """Deconvolutional Single Shot Multibox Detector with 300x300 inputs.
 
     This is a model of Single Shot Multibox Detector [#]_.
