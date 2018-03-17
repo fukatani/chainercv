@@ -48,7 +48,7 @@ def _hard_negative(x, positive, k):
 
 
 def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=False,
-                  objectness=None, arm_locs=None):
+                  arm_confs=None, arm_locs=None):
     """Computes multibox losses.
 
     This is a loss function used in [#]_.
@@ -108,7 +108,12 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=Fals
         return z, z
 
     loc_loss = F.huber_loss(mb_locs, gt_mb_locs, 1, reduce='no')
-    if objectness is not None:
+    if arm_confs is not None:
+        objectness = xp.exp(arm_confs)
+        negativeness = xp.exp(1 - arm_confs)
+        objectness /= objectness + negativeness
+        objectness[objectness <= 0.01] = 0
+        objectness[objectness > 0.01] = 1
         loc_loss *= objectness
     loc_loss = F.sum(loc_loss, axis=-1)
     loc_loss *= positive.astype(loc_loss.dtype)
@@ -121,7 +126,7 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=Fals
         k *= 2
     hard_negative = _hard_negative(conf_loss.array, positive, k)
     conf_loss *= xp.logical_or(positive, hard_negative).astype(conf_loss.dtype)
-    if objectness is not None:
+    if arm_confs is not None:
         conf_loss *= objectness.reshape(objectness.shape[0], objectness.shape[1])
     conf_loss = F.sum(conf_loss) / n_positive
 

@@ -357,7 +357,8 @@ def _unravel_index(index, shape):
 
 
 class RefineDetMultiboxCoder(MultiboxCoder):
-    def decode(self, arm_loc, arm_conf, odm_loc, odm_conf, nms_thresh=0.45, score_thresh=0.6):
+    def decode(self, arm_loc, arm_conf, odm_loc, odm_conf, nms_thresh=0.45,
+               score_thresh=0.6):
         xp = self.xp
 
         # (center_y, center_x, height, width)
@@ -368,7 +369,7 @@ class RefineDetMultiboxCoder(MultiboxCoder):
         mb_bbox[:, 2:] *= xp.exp(arm_loc[:, 2:] * self._variance[1])
 
         mb_bbox[:, :2] += odm_loc[:, :2] * self._variance[0] \
-                          * self._default_bbox[:, 2:]
+                          * mb_bbox[:, :2]
         mb_bbox[:, 2:] *= xp.exp(odm_loc[:, 2:] * self._variance[1])
 
         # (center_y, center_x, height, width) -> (y_min, x_min, height, width)
@@ -379,6 +380,13 @@ class RefineDetMultiboxCoder(MultiboxCoder):
         # softmax
         mb_score = xp.exp(odm_conf)
         mb_score /= mb_score.sum(axis=1, keepdims=True)
+
+        objectness = xp.exp(arm_conf)
+        negativeness = xp.exp(1 - arm_conf)
+        objectness /= objectness + negativeness
+
+        # negative anchor filtering
+        mb_score[objectness <= 0.01] = 0
 
         bbox = list()
         label = list()

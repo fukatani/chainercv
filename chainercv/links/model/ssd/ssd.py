@@ -5,6 +5,7 @@ import numpy as np
 import chainer
 
 from chainercv.links.model.ssd import MultiboxCoder
+from chainercv.links.model.ssd import RefineDetMultiboxCoder
 from chainercv import transforms
 
 
@@ -221,6 +222,22 @@ class SSD(chainer.Chain):
 
 
 class RefineDetSSD(SSD):
+
+    def __init__(
+            self, extractor, multibox,
+            steps, sizes, variance=(0.1, 0.2),
+            mean=0):
+        self.mean = mean
+        self.use_preset('visualize')
+
+        super(SSD, self).__init__()
+        with self.init_scope():
+            self.extractor = extractor
+            self.multibox = multibox
+
+        self.coder = RefineDetMultiboxCoder(
+            extractor.grids, multibox.aspect_ratios, steps, sizes, variance)
+
     def predict(self, imgs):
         x = list()
         sizes = list()
@@ -240,9 +257,10 @@ class RefineDetSSD(SSD):
         bboxes = list()
         labels = list()
         scores = list()
-        for mb_loc, mb_conf, size in zip(odm_locs, odm_confs, sizes):
-            bbox, label, score = self.coder.decode(
-                mb_loc, mb_conf, self.nms_thresh, self.score_thresh)
+        for arm_loc, arm_conf, odm_loc, odm_conf, size in zip(
+                arm_locs, arm_confs, odm_locs, odm_confs, sizes):
+            bbox, label, score = self.coder.decode(arm_loc, arm_conf,
+                odm_loc, odm_conf, self.nms_thresh, self.score_thresh)
             bbox = transforms.resize_bbox(
                 bbox, (self.insize, self.insize), size)
             bboxes.append(chainer.cuda.to_cpu(bbox))
