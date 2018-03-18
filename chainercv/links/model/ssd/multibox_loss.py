@@ -41,8 +41,11 @@ def _elementwise_softmax_cross_entropy_with_softlabel(x, t, two_class):
 #     return y2
 
 
-def _hard_negative(x, positive, k):
-    rank = (x * (positive - 1)).argsort(axis=1).argsort(axis=1)
+def _hard_negative(x, positive, k, arm_objectness=None):
+    if arm_objectness is None:
+        rank = (x * (positive - 1)).argsort(axis=1).argsort(axis=1)
+    else:
+        rank = (x * (positive - 1) * (arm_objectness)).argsort(axis=1).argsort(axis=1)
     hard_negative = rank < (positive.sum(axis=1) * k)[:, np.newaxis]
     return hard_negative
 
@@ -114,9 +117,14 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=Fals
         objectness /= objectness + negativeness
         objectness[objectness <= 0.01] = 0
         objectness[objectness > 0.01] = 1
-        loc_loss *= objectness
+        objectness = objectness.reshape(objectness.shape[0], objectness.shape[1])
+    else:
+        objectness = None
+
     loc_loss = F.sum(loc_loss, axis=-1)
     loc_loss *= positive.astype(loc_loss.dtype)
+    if objectness is not None:
+        loc_loss *= objectness.astype(loc_loss.dtype)
     loc_loss = F.sum(loc_loss) / n_positive
 
     if gt_mb_labels.ndim == 2:
@@ -124,10 +132,10 @@ def multibox_loss(mb_locs, mb_confs, gt_mb_locs, gt_mb_labels, k, two_class=Fals
     else:
         conf_loss = _elementwise_softmax_cross_entropy_with_softlabel(mb_confs, gt_mb_labels, two_class)
         k *= 2
-    hard_negative = _hard_negative(conf_loss.array, positive, k)
-    conf_loss *= xp.logical_or(positive, hard_negative).astype(conf_loss.dtype)
+    hard_negative = _hard_negative(conf_loss.array, positive, k, objectness)
     if arm_confs is not None:
-        conf_loss *= objectness.reshape(objectness.shape[0], objectness.shape[1])
+        positive *= objectness.astype(positive.dtype)
+    conf_loss *= xp.logical_or(positive, hard_negative).astype(conf_loss.dtype)
     conf_loss = F.sum(conf_loss) / n_positive
 
     return loc_loss, conf_loss

@@ -379,16 +379,16 @@ def main():
             param.update_rule.add_hook(WeightDecay(0.0005))
 
     updater = training.StandardUpdater(train_iter, optimizer, device=args.gpu)
-    trainer = training.Trainer(updater, (120000, 'iteration'), args.out)
+    trainer = training.Trainer(updater, (240000, 'iteration'), args.out)
     trainer.extend(
         extensions.ExponentialShift('lr', 0.1, init=1e-3),
-        trigger=triggers.ManualScheduleTrigger([80000, 100000], 'iteration'))
+        trigger=triggers.ManualScheduleTrigger([160000, 200000], 'iteration'))
 
     trainer.extend(
         DetectionVOCEvaluator(
             test_iter, model, use_07_metric=True,
             label_names=voc_bbox_label_names),
-        trigger=(100000, 'iteration'))
+        trigger=(10000, 'iteration'))
 
     log_interval = 10, 'iteration'
     trainer.extend(extensions.LogReport(trigger=log_interval))
